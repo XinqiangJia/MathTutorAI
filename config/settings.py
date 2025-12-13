@@ -1,6 +1,7 @@
 # config/settings.py
 
-OLLAMA_MODEL = "qwen2.5:1.5b"
+#OLLAMA_MODEL = "qwen2.5:1.5b"
+OLLAMA_MODEL = "phi3:mini"
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 
 SYSTEM_PROMPT = (
