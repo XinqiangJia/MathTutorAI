@@ -1,5 +1,3 @@
-# core/agent.py
-
 import requests
 from config.settings import OLLAMA_API_URL, OLLAMA_MODEL, SYSTEM_PROMPT
 from utils.logger import log
