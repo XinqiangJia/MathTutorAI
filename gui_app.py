@@ -18,7 +18,7 @@ def main(page: ft.Page):
     page.title = "小学数学 AI 老师"
     page.window.width = 650
     page.window.height = 750
-    page.theme_mode = ft.ThemeMode.LIGHT
+    page.theme_mode = "light"
 
     # ========================
     # 全局变量
@@ -28,7 +28,7 @@ def main(page: ft.Page):
     # ========================
     # 创建聊天区域
     # ========================
-    chat_area = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    chat_area = ft.Column(scroll="adaptive", expand=True)
 
     # 创建输入组件
     user_input = ft.TextField(
@@ -74,6 +74,16 @@ def main(page: ft.Page):
         return context
 
     # ========================
+    # 最简单的UI更新方式
+    # ========================
+    def safe_update():
+        """安全更新UI"""
+        try:
+            page.update()
+        except:
+            pass
+
+    # ========================
     # 发送消息函数
     # ========================
     def send_message(e):
@@ -101,7 +111,7 @@ def main(page: ft.Page):
         thinking_row = ft.Row([ft.Text("老师：🤔 正在思考...", color="orange")])
         chat_area.controls.append(thinking_row)
         user_input.value = ""
-        page.update()
+        safe_update()
 
         # 创建AI回复线程
         def ai_thread():
@@ -125,24 +135,16 @@ def main(page: ft.Page):
             )
             real_reply_row = ft.Row([ft.Text(full_reply_text, color="green", expand=True), copy_btn])
 
-            # 在主线程中更新UI
-            def update_ui():
-                try:
-                    # 移除思考中的消息
-                    if thinking_row in chat_area.controls:
-                        chat_area.controls.remove(thinking_row)
-                    # 添加AI回复
-                    chat_area.controls.append(real_reply_row)
-                    page.update()
-                except Exception as e:
-                    print(f"更新UI时出错: {e}")
-
-            # 在主线程中执行UI更新
-            import asyncio
-            asyncio.run_coroutine_threadsafe(
-                page.update_async(),
-                page.loop
-            )
+            # 直接更新UI - Flet 通常能处理线程安全
+            try:
+                # 移除思考中的消息
+                if thinking_row in chat_area.controls:
+                    chat_area.controls.remove(thinking_row)
+                # 添加AI回复
+                chat_area.controls.append(real_reply_row)
+                safe_update()
+            except Exception as e:
+                print(f"更新UI时出错: {e}")
 
         # 启动AI线程
         thread = threading.Thread(target=ai_thread, daemon=True)
@@ -162,7 +164,7 @@ def main(page: ft.Page):
 
     file_picker = ft.FilePicker(on_result=on_file_result)
     page.overlay.append(file_picker)
-    page.update()
+    safe_update()
 
     # ========================
     # 处理上传的图片文件
@@ -174,7 +176,7 @@ def main(page: ft.Page):
         # 显示处理中的消息
         thinking_row = ft.Row([ft.Text("📷 正在处理图片...", color="orange")])
         chat_area.controls.append(thinking_row)
-        page.update()
+        safe_update()
 
         def process_file_thread():
             question = ""
@@ -219,96 +221,80 @@ def main(page: ft.Page):
                 question = f"（处理失败：{str(ex)[:50]}）"
                 print(f"📌 处理文件时出错: {ex}")
 
-            # 更新UI函数
-            def update_ui():
-                try:
-                    # 移除处理中的消息
-                    if thinking_row in chat_area.controls:
-                        chat_area.controls.remove(thinking_row)
+            # 直接更新UI
+            try:
+                # 移除处理中的消息
+                if thinking_row in chat_area.controls:
+                    chat_area.controls.remove(thinking_row)
 
-                    # 显示识别结果
-                    full_user_text = f"你（图片）：{question}"
-                    user_copy_btn = ft.IconButton(
-                        icon="content_copy",
-                        tooltip="复制",
-                        on_click=lambda _: copy_to_clipboard(full_user_text),
-                        icon_color="grey600",
-                        icon_size=14
-                    )
-                    user_row = ft.Row([ft.Text(full_user_text, color="blue", expand=True), user_copy_btn])
-                    chat_area.controls.append(user_row)
+                # 显示识别结果
+                full_user_text = f"你（图片）：{question}"
+                user_copy_btn = ft.IconButton(
+                    icon="content_copy",
+                    tooltip="复制",
+                    on_click=lambda _: copy_to_clipboard(full_user_text),
+                    icon_color="grey600",
+                    icon_size=14
+                )
+                user_row = ft.Row([ft.Text(full_user_text, color="blue", expand=True), user_copy_btn])
+                chat_area.controls.append(user_row)
 
-                    # 添加对话记录
-                    add_conversation("student", f"[图片] {question}")
+                # 添加对话记录
+                add_conversation("student", f"[图片] {question}")
 
-                    # 如果识别成功，自动请求AI回答
-                    if question and "（" not in question and "文件：" not in question:
-                        # 显示思考中
-                        thinking_row2 = ft.Row([ft.Text("老师：🤔 正在思考...", color="orange")])
-                        chat_area.controls.append(thinking_row2)
-                        page.update()
+                # 如果识别成功，自动请求AI回答
+                if question and "（" not in question and "文件：" not in question:
+                    # 显示思考中
+                    thinking_row2 = ft.Row([ft.Text("老师：🤔 正在思考...", color="orange")])
+                    chat_area.controls.append(thinking_row2)
 
-                        # 启动AI回复线程
-                        def ai_reply_thread():
-                            try:
-                                context = get_context_string()
-                                reply = agent.generate_response(question, context=context)
-                            except Exception:
-                                reply = "❌ 老师暂时无法回答。"
+                    # 启动AI回复线程
+                    def ai_reply_thread():
+                        try:
+                            context = get_context_string()
+                            reply = agent.generate_response(question, context=context)
+                        except Exception:
+                            reply = "❌ 老师暂时无法回答。"
 
-                            # 添加老师对话记录
-                            add_conversation("teacher", reply)
+                        # 添加老师对话记录
+                        add_conversation("teacher", reply)
 
-                            full_reply_text = f"老师：{reply.strip()}"
-                            copy_btn = ft.IconButton(
-                                icon="content_copy",
-                                tooltip="复制",
-                                on_click=lambda _: copy_to_clipboard(full_reply_text),
-                                icon_color="grey600",
-                                icon_size=14
-                            )
-                            reply_row = ft.Row([ft.Text(full_reply_text, color="green", expand=True), copy_btn])
-
-                            # 更新UI
-                            def update_ui2():
-                                try:
-                                    if thinking_row2 in chat_area.controls:
-                                        chat_area.controls.remove(thinking_row2)
-                                    chat_area.controls.append(reply_row)
-                                    page.update()
-                                except Exception as e:
-                                    print(f"更新UI2时出错: {e}")
-
-                            # 在主线程中执行UI更新
-                            import asyncio
-                            asyncio.run_coroutine_threadsafe(
-                                page.update_async(),
-                                page.loop
-                            )
-
-                        # 启动AI回复线程
-                        ai_thread = threading.Thread(target=ai_reply_thread, daemon=True)
-                        ai_thread.start()
-                    else:
-                        # 提供手动输入选项
-                        manual_btn = ft.ElevatedButton(
-                            "📝 手动输入题目内容",
-                            on_click=lambda e: open_manual_input_dialog(
-                                file_info.name if hasattr(file_info, 'name') else "图片"),
-                            height=30
+                        full_reply_text = f"老师：{reply.strip()}"
+                        copy_btn = ft.IconButton(
+                            icon="content_copy",
+                            tooltip="复制",
+                            on_click=lambda _: copy_to_clipboard(full_reply_text),
+                            icon_color="grey600",
+                            icon_size=14
                         )
-                        chat_area.controls.append(manual_btn)
-                        page.update()
+                        reply_row = ft.Row([ft.Text(full_reply_text, color="green", expand=True), copy_btn])
 
-                except Exception as e:
-                    print(f"更新UI时出错: {e}")
+                        # 直接更新UI
+                        try:
+                            if thinking_row2 in chat_area.controls:
+                                chat_area.controls.remove(thinking_row2)
+                            chat_area.controls.append(reply_row)
+                            safe_update()
+                        except Exception as e:
+                            print(f"更新UI2时出错: {e}")
 
-            # 在主线程中执行UI更新
-            import asyncio
-            asyncio.run_coroutine_threadsafe(
-                page.update_async(),
-                page.loop
-            )
+                    # 启动AI回复线程
+                    ai_thread = threading.Thread(target=ai_reply_thread, daemon=True)
+                    ai_thread.start()
+                else:
+                    # 提供手动输入选项
+                    manual_btn = ft.ElevatedButton(
+                        "📝 手动输入题目内容",
+                        on_click=lambda e: open_manual_input_dialog(
+                            file_info.name if hasattr(file_info, 'name') else "图片"),
+                        height=30
+                    )
+                    chat_area.controls.append(manual_btn)
+
+                safe_update()
+
+            except Exception as e:
+                print(f"更新UI时出错: {e}")
 
         # 启动文件处理线程
         thread = threading.Thread(target=process_file_thread, daemon=True)
@@ -353,7 +339,7 @@ def main(page: ft.Page):
             # 显示思考中
             thinking_row = ft.Row([ft.Text("老师：🤔 正在思考...", color="orange")])
             chat_area.controls.append(thinking_row)
-            page.update()
+            safe_update()
 
             # 获取AI回答线程
             def get_reply_thread():
@@ -376,22 +362,14 @@ def main(page: ft.Page):
                 )
                 reply_row = ft.Row([ft.Text(full_reply_text, color="green", expand=True), copy_btn])
 
-                # 更新UI
-                def update_dialog_ui():
-                    try:
-                        if thinking_row in chat_area.controls:
-                            chat_area.controls.remove(thinking_row)
-                        chat_area.controls.append(reply_row)
-                        page.update()
-                    except Exception as e:
-                        print(f"更新对话框UI时出错: {e}")
-
-                # 在主线程中执行UI更新
-                import asyncio
-                asyncio.run_coroutine_threadsafe(
-                    page.update_async(),
-                    page.loop
-                )
+                # 直接更新UI
+                try:
+                    if thinking_row in chat_area.controls:
+                        chat_area.controls.remove(thinking_row)
+                    chat_area.controls.append(reply_row)
+                    safe_update()
+                except Exception as e:
+                    print(f"更新对话框UI时出错: {e}")
 
             # 启动AI回复线程
             thread = threading.Thread(target=get_reply_thread, daemon=True)
@@ -413,7 +391,7 @@ def main(page: ft.Page):
             ]
         )
         page.dialog.open = True
-        page.update()
+        safe_update()
 
     # ========================
     # 打开文件选择器
@@ -438,7 +416,7 @@ def main(page: ft.Page):
 
     input_row = ft.Row(
         [user_input, upload_btn, send_btn],
-        alignment=ft.MainAxisAlignment.END,
+        alignment="end",
         spacing=10
     )
 
@@ -463,4 +441,5 @@ def main(page: ft.Page):
 # 启动应用
 if __name__ == "__main__":
     print("🚀 启动小学数学 AI 老师应用...")
-    ft.app(target=main)
+    #ft.app(target=main)
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER)
